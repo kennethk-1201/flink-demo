@@ -1,4 +1,6 @@
 import random
+import json
+import time
 
 from faker import Faker
 from confluent_kafka import SerializingProducer
@@ -22,6 +24,12 @@ def generate_sales_transactions():
         "paymentMethod": random.choice(['credit_card', 'debit_card', 'online_transfer'])
     }
 
+def delivery_report(err, msg):
+    if err is not None:
+        print(f'Message delivery failed: {err}')
+    else:
+        print(f"Message delivered to {msg.topic} [{msg.partition()}]")
+
 def main():
     topic = 'financial_transactions'
     producer = SerializingProducer({
@@ -37,6 +45,15 @@ def main():
 
             print(transaction)
 
+            producer.produce(topic,
+                             key=transaction['transactionId'],
+                             value=json.dumps(transaction),
+                             on_delivery=delivery_report)
+            producer.poll(0)
+            time.sleep(5)
+        except BufferError:
+            print("Buffer full! Waiting...")
+            time.sleep(1)
         except Exception as e:
             print(e)
 
